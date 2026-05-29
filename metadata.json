@@ -1,0 +1,6 @@
+{
+  "name": "Audit Keamanan SPBE",
+  "description": "Sistem Audit Keamanan Website dan Aplikasi Pemerintah Daerah sesuai Peraturan BSSN Nomor 4 Tahun 2021",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
