@@ -40,12 +40,15 @@ export default function Sidebar({
     { id: 'risk', name: 'Risk Heatmap 5x5', icon: Grid3X3 },
     { id: 'findings', name: 'Temuan Audit (& PIC)', icon: AlertTriangle },
     { id: 'conclusion', name: 'Kesimpulan & Laporan', icon: FileSpreadsheet },
-    { id: 'database', name: 'Database Supabase', icon: Database },
   ];
 
-  // If user is Admin, append User Management menu option
+  // If user is Admin, append Database & User Management menu options
   const navItems = user?.role === 'ADMIN' 
-    ? [...baseNavItems, { id: 'users', name: 'Manajemen User', icon: Users }]
+    ? [
+        ...baseNavItems, 
+        { id: 'database', name: 'Database Supabase', icon: Database },
+        { id: 'users', name: 'Manajemen User', icon: Users }
+      ]
     : baseNavItems;
 
   const getRoleLabel = (role: string) => {

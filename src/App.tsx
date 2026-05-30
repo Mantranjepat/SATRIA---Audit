@@ -69,6 +69,15 @@ export default function App() {
       />
 
       <Route 
+        path="/admin/database" 
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <Workspace role="ADMIN" initialTab="database" />
+          </ProtectedRoute>
+        } 
+      />
+
+      <Route 
         path="/auditor/dashboard" 
         element={
           <ProtectedRoute allowedRoles={['AUDITOR']}>
@@ -105,9 +114,9 @@ export default function App() {
 }
 
 // Unified stateful workspace layout supporting dynamic role injection
-function Workspace({ role }: { role: 'ADMIN' | 'AUDITOR' | 'AUDITEE' }) {
+function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITOR' | 'AUDITEE', initialTab?: string }) {
   const { user } = useAuth();
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [currentTab, setCurrentTab] = useState<string>(initialTab);
   const [darkMode, setDarkMode] = useState<boolean>(true); // Default to cyberpunk dark look
   const [showNotification, setShowNotification] = useState<string | null>(null);
 
@@ -140,10 +149,12 @@ function Workspace({ role }: { role: 'ADMIN' | 'AUDITOR' | 'AUDITEE' }) {
   const [findings, setFindings] = useState<FindingItem[]>(initialFindings);
   const [isAuditLocked, setIsAuditLocked] = useState<boolean>(false);
 
-  // Reset tab when active role changes to prevent hanging states
+  // Reset tab only if active role is unauthorized for the current tab to prevent hanging states
   useEffect(() => {
-    setCurrentTab('dashboard');
-  }, [role]);
+    if (role !== 'ADMIN' && (currentTab === 'database' || currentTab === 'users')) {
+      setCurrentTab('dashboard');
+    }
+  }, [role, currentTab]);
 
   // Handle HTML document body theme class toggling
   useEffect(() => {
@@ -277,6 +288,16 @@ function Workspace({ role }: { role: 'ADMIN' | 'AUDITOR' | 'AUDITEE' }) {
           />
         );
       case 'database':
+        if (role !== 'ADMIN') {
+          return (
+            <div className="text-center py-20 px-4">
+              <div className="max-w-md mx-auto p-8 rounded-2xl border border-red-500/20 bg-red-500/5 text-center">
+                <h3 className="text-lg font-bold text-red-400 mb-2">Akses Ditolak!</h3>
+                <p className="text-xs text-slate-400">Anda tidak memiliki hak akses yang memadai untuk instrumen manajemen database Supabase.</p>
+              </div>
+            </div>
+          );
+        }
         return (
           <DatabaseTab 
             darkMode={darkMode}

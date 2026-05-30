@@ -40,7 +40,7 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
     window.print();
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     try {
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -51,36 +51,96 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
+      // Preload official Purbalingga logo from Wikimedia (has open CORS policy)
+      const loadLogo = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Lambang_Kabupaten_Purbalingga.png/150px-Lambang_Kabupaten_Purbalingga.png';
+          img.onload = () => {
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+              } else {
+                resolve(null);
+              }
+            } catch (canvasErr) {
+              console.warn('Canvas conversion failed, showing fallback logo:', canvasErr);
+              resolve(null);
+            }
+          };
+          img.onerror = () => {
+            console.warn('Network logo load failed, showing fallback logo');
+            resolve(null);
+          };
+          // Timeout after 3 seconds to avoid blocking the user
+          setTimeout(() => resolve(null), 3000);
+        });
+      };
+
+      const logoBase64 = await loadLogo();
+
       // Helper to draw horizontal line
-      const drawLine = (y: number, thickness: number = 0.5, color: [number, number, number] = [148, 163, 184]) => {
+      const drawLine = (y: number, thickness: number = 0.5, color: [number, number, number] = [0, 0, 0]) => {
         doc.setDrawColor(color[0], color[1], color[2]);
         doc.setLineWidth(thickness);
-        doc.line(15, y, pageWidth - 15, y);
+        doc.line(20, y, pageWidth - 20, y);
       };
 
       // Draw Official Header (Letterhead / Kop Surat)
       const drawKopSurat = (yStart: number) => {
+        // Draw Logo (Left side)
+        if (logoBase64) {
+          doc.addImage(logoBase64, 'PNG', 20, yStart - 5, 16, 20);
+        } else {
+          // Programmatic Seal Fallback
+          doc.setDrawColor(5, 150, 105); // emerald-600
+          doc.setFillColor(241, 245, 249); // slate-100
+          doc.setLineWidth(0.5);
+          doc.circle(28, yStart + 5, 8, 'FD'); // Outer circle of seal
+          doc.setDrawColor(217, 119, 6); // amber-600
+          doc.circle(28, yStart + 5, 6.5, 'D'); // Inner circle of seal
+          doc.setTextColor(5, 150, 105);
+          doc.setFont('Helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.text("SPBE", 28, yStart + 4.5, { align: 'center' });
+          doc.setFontSize(5);
+          doc.text("KAB.PBG", 28, yStart + 7.5, { align: 'center' });
+        }
+
+        // Department details (Centered on the page)
         doc.setTextColor(15, 23, 42); // slate-900
         doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(13);
-        doc.text("PEMERINTAH KABUPATEN PURBALINGGA", pageWidth / 2, yStart, { align: 'center' });
-
         doc.setFontSize(11);
-        doc.text("DINAS KOMUNIKASI DAN INFORMATIKA", pageWidth / 2, yStart + 6, { align: 'center' });
+        doc.text("PEMERINTAH KABUPATEN PURBALINGGA", pageWidth / 2, yStart - 2, { align: 'center' });
+
+        doc.setFontSize(13);
+        doc.text("DINAS KOMUNIKASI DAN INFORMATIKA", pageWidth / 2, yStart + 4, { align: 'center' });
 
         doc.setFont('Helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139); // slate-500
-        doc.text("Jl. Jenderal Sudirman No. 100, Purbalingga, Jawa Tengah | Telp: (0281) 891011", pageWidth / 2, yStart + 11, { align: 'center' });
+        doc.text("Jalan Jenderal Sudirman No. 100 Purbalingga - 53311 | Telepon (0281) 891011", pageWidth / 2, yStart + 9, { align: 'center' });
+        doc.text("Pos-el: diskominfo@purbalinggakab.go.id | Laman: purbalinggakab.go.id", pageWidth / 2, yStart + 13, { align: 'center' });
 
-        // Official double-line under letterhead
-        drawLine(yStart + 14, 0.8, [15, 23, 42]);
-        drawLine(yStart + 15.2, 0.2, [15, 23, 42]);
+        // Official double-line under letterhead spanning X=20 to X=190
+        drawLine(yStart + 17, 0.8, [15, 23, 42]);
+        drawLine(yStart + 18.2, 0.2, [15, 23, 42]);
 
+        // Report Title
         doc.setFont('Helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.setTextColor(5, 150, 105); // emerald-600
-        doc.text("LAPORAN HASIL EVALUASI KEAMANAN SPBE - RESMI", pageWidth / 2, yStart + 21, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setTextColor(15, 23, 42); 
+        doc.text("LAPORAN HASIL EVALUASI KEAMANAN SPBE - RESMI", pageWidth / 2, yStart + 26, { align: 'center' });
+        
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.text("Nomor: 800 / 025 / SPBE / 2026", pageWidth / 2, yStart + 31, { align: 'center' });
       };
 
       drawKopSurat(20);
@@ -89,79 +149,84 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
       doc.setTextColor(15, 23, 42);
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text("I. INFORMASI UMUM OBJEK EVALUASI", 15, 52);
+      doc.text("I. INFORMASI UMUM OBJEK EVALUASI", 20, 62);
 
       const anggotaStr = identity.anggotaAuditor && identity.anggotaAuditor.length > 0 
         ? identity.anggotaAuditor.join(", ") 
         : "-";
 
-      const metaData = [
-        ["Instansi Pemerintah", ": " + (identity.opd || "-"), "Tanggal Pemeriksaan", ": " + (identity.tanggalAudit || "-")],
-        ["Sistem/Aplikasi", ": " + (identity.namaAplikasi || "-"), "Jenis Audit / Evaluasi", ": " + (identity.jenisAudit || "-")],
-        ["Domain URL", ": " + (identity.domainUrl || "-"), "Ketua Tim Auditor", ": " + (identity.ketuaTimAuditor || "-")],
-        ["Kompleksitas Objek", ": " + (identity.kompleksitasObjek || "-"), "Tim Anggota Auditor", ": " + anggotaStr],
-        ["Lokasi Peladen", ": " + (identity.sebaranLokasi || "-"), "Durasi Evaluasi", ": " + (identity.jumlahHariEstimasi || "0") + " Hari Kerja"]
+      const metadataRows = [
+        ["Instansi Pemerintah", `: ${identity.opd || "Dinas Komunikasi dan Informatika Kabupaten Purbalingga"}`],
+        ["Tanggal Pemeriksaan", `: ${identity.tanggalAudit || "2026-05-29"}`],
+        ["Sistem/Aplikasi", `: ${identity.namaAplikasi || "APLIKASI E-KEPEGAWAIAN"}`],
+        ["Jenis Audit / Evaluasi", `: ${identity.jenisAudit || "WEBSITE"}`],
+        ["Domain URL", `: ${identity.domainUrl || "https://ekepegawaian.purbalinggakab.go.id"}`],
+        ["Ketua Tim Auditor", `: ${identity.ketuaTimAuditor || "Anna S.D. Wibowo"}`],
+        ["Tim Anggota Auditor", `: ${anggotaStr}`],
+        ["Kompleksitas Objek", `: ${identity.kompleksitasObjek || "Sedang"}`],
+        ["Lokasi Peladen", `: ${identity.sebaranLokasi || "Terpusat"}`],
+        ["Durasi Evaluasi", `: ${identity.jumlahHariEstimasi || "6"} Hari Kerja`]
       ];
 
       autoTable(doc, {
-        startY: 55,
-        body: metaData,
+        startY: 65,
+        body: metadataRows,
         theme: 'plain',
         styles: {
           fontSize: 8.5,
-          cellPadding: 1.5,
+          cellPadding: { top: 1.5, bottom: 1.5, left: 0, right: 0 },
           textColor: [15, 23, 42],
-          font: 'Helvetica'
+          font: 'Helvetica',
+          valign: 'top'
         },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 35 },
-          1: { cellWidth: 60 },
-          2: { fontStyle: 'bold', cellWidth: 35 },
-          3: { cellWidth: 60 }
+          0: { fontStyle: 'bold', cellWidth: 40 },
+          1: { cellWidth: 130 }
         },
-        margin: { left: 15, right: 15 }
+        margin: { left: 20, right: 20 }
       });
 
       const yAfterMeta = (doc as any).lastAutoTable.finalY + 10;
 
-      // Assessment Scores banner
+      // Assessment Scores banner (Bounded by margins left: 20, right: 20 -> width = 170)
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text("II. TINGKAT KEPATUHAN & HASIL PENILAIAN SECURITY", 15, yAfterMeta);
+      doc.text("II. TINGKAT KEPATUHAN & HASIL PENILAIAN SECURITY", 20, yAfterMeta);
 
       const scoreBoxY = yAfterMeta + 3;
       doc.setDrawColor(226, 232, 240); // slate-200
       doc.setFillColor(248, 250, 252); // slate-50
-      doc.rect(15, scoreBoxY, pageWidth - 30, 24, 'F');
+      doc.rect(20, scoreBoxY, pageWidth - 40, 24, 'F');
       
       // Draw left heavy border accent
       doc.setFillColor(5, 150, 105); // emerald-600
-      doc.rect(15, scoreBoxY, 2, 24, 'F');
+      doc.rect(20, scoreBoxY, 2, 24, 'F');
 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(9);
       doc.setFont('Helvetica', 'bold');
-      doc.text("STATUS AKHIR EVALUASI:", 22, scoreBoxY + 8);
+      doc.text("STATUS AKHIR EVALUASI:", 26, scoreBoxY + 8);
       doc.setFont('Helvetica', 'normal');
-      doc.text(`Tingkat Kepatuhan Keamanan SPBE diperoleh dengan menguji pemenuhan pedoman BSSN 2021.`, 22, scoreBoxY + 14);
-      doc.text(`Kriteria Memadai: ${stats.memadaiCount} | Perlu Peningkatan: ${stats.perluPeningkatanCount} | Tidak Memadai: ${stats.tidakMemadaiCount}`, 22, scoreBoxY + 19);
+      doc.setFontSize(8.5);
+      doc.text(`Tingkat Kepatuhan Keamanan SPBE diperoleh dengan menguji pemenuhan pedoman BSSN 2021.`, 26, scoreBoxY + 14);
+      doc.text(`Kriteria Memadai: ${stats.memadaiCount} | Perlu Peningkatan: ${stats.perluPeningkatanCount} | Tidak Memadai: ${stats.tidakMemadaiCount}`, 26, scoreBoxY + 19);
 
       // Compliance Score Circle simulation
       doc.setFillColor(5, 150, 105); // emerald-600
-      doc.rect(pageWidth - 48, scoreBoxY + 2, 33, 20, 'F');
+      doc.rect(pageWidth - 55, scoreBoxY + 2, 35, 20, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(12);
-      doc.text(`${stats.complianceScore}%`, pageWidth - 31.5, scoreBoxY + 9, { align: 'center' });
+      doc.text(`${stats.complianceScore}%`, pageWidth - 37.5, scoreBoxY + 9, { align: 'center' });
       doc.setFontSize(7);
-      doc.text(stats.ratingLevel, pageWidth - 31.5, scoreBoxY + 15, { align: 'center' });
+      doc.text(stats.ratingLevel, pageWidth - 37.5, scoreBoxY + 15, { align: 'center' });
 
       // Checklist Detail Table Header
       const yChecklistHeading = scoreBoxY + 32;
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(10);
       doc.setFont('Helvetica', 'bold');
-      doc.text("III. DETAILED AUDIT CHECKLIST & RECOMMENDATIONS", 15, yChecklistHeading);
+      doc.text("III. DETAILED AUDIT CHECKLIST & RECOMMENDATIONS", 20, yChecklistHeading);
 
       const checklistHeaders = [["ID", "Sub-Klausul / Pasal", "Kriteria Pengendalian Keamanan", "Kesimpulan Evaluasi", "Rekomendasi Utama"]];
       const checklistRows = checklist.map(c => [
@@ -192,11 +257,11 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
           halign: 'center'
         },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 12, halign: 'center' },
+          0: { fontStyle: 'bold', cellWidth: 10, halign: 'center' },
           1: { cellWidth: 25, halign: 'center' },
-          2: { cellWidth: 62 },
-          3: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
-          4: { cellWidth: 55 }
+          2: { cellWidth: 55 },
+          3: { cellWidth: 28, halign: 'center', fontStyle: 'bold' },
+          4: { cellWidth: 52 }
         },
         didParseCell: (data) => {
           if (data.section === 'body' && data.column.index === 3) {
@@ -210,7 +275,7 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
             }
           }
         },
-        margin: { left: 15, right: 15 }
+        margin: { left: 20, right: 20 }
       });
 
       const yFindingsHeading = (doc as any).lastAutoTable.finalY + 10;
@@ -225,7 +290,7 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
       doc.setTextColor(15, 23, 42);
       doc.setFontSize(10);
       doc.setFont('Helvetica', 'bold');
-      doc.text("IV. DAFTAR TEMUAN SIBER & STATUS TINDAK LANJUT", 15, currentY);
+      doc.text("IV. DAFTAR TEMUAN SIBER & STATUS TINDAK LANJUT", 20, currentY);
 
       const findingsHeaders = [["ID", "Kategori Temuan", "Kerentanan & Deskripsi Dampak / Rekomendasi", "PIC", "Target", "Status Lanjut"]];
       const findingsRows = findings.map(f => [
@@ -257,12 +322,12 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
           halign: 'center'
         },
         columnStyles: {
-          0: { fontStyle: 'bold', cellWidth: 12, halign: 'center' },
-          1: { cellWidth: 30 },
-          2: { cellWidth: 90 },
-          3: { cellWidth: 18, halign: 'center' },
-          4: { cellWidth: 15, halign: 'center' },
-          5: { cellWidth: 15, halign: 'center', fontStyle: 'bold' }
+          0: { fontStyle: 'bold', cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 65 },
+          3: { cellWidth: 20, halign: 'center' },
+          4: { cellWidth: 25, halign: 'center' },
+          5: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }
         },
         didParseCell: (data) => {
           if (data.section === 'body' && data.column.index === 5) {
@@ -276,7 +341,7 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
             }
           }
         },
-        margin: { left: 15, right: 15 }
+        margin: { left: 20, right: 20 }
       });
 
       const ySignatures = (doc as any).lastAutoTable.finalY + 15;
@@ -293,39 +358,39 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
       doc.setFont('Helvetica', 'normal');
 
       // Left Column Signature
-      doc.text("Mengetahui / Memvalidasi,", 40, signY, { align: 'center' });
+      doc.text("Mengetahui / Memvalidasi,", 50, signY, { align: 'center' });
       doc.setFont('Helvetica', 'bold');
       doc.setTextColor(15, 23, 42);
-      doc.text("Sekretaris Daerah / Penanggung Jawab Klien", 40, signY + 4, { align: 'center' });
+      doc.text("Sekretaris Daerah / Penanggung Jawab Klien", 50, signY + 4, { align: 'center' });
 
       doc.setFont('Helvetica', 'normal');
-      doc.text("______________________________________", 40, signY + 24, { align: 'center' });
-      doc.text("NIP. 19740510 200012 1 001", 40, signY + 29, { align: 'center' });
+      doc.text("______________________________________", 50, signY + 24, { align: 'center' });
+      doc.text("NIP. 19740510 200012 1 001", 50, signY + 29, { align: 'center' });
 
       // Right Column Signature
       doc.setTextColor(100, 116, 139);
       const dateStr = `Purbalingga, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`;
-      doc.text(dateStr, pageWidth - 40, signY, { align: 'center' });
-      doc.text("Dibuat oleh,", pageWidth - 40, signY + 4, { align: 'center' });
+      doc.text(dateStr, pageWidth - 50, signY, { align: 'center' });
+      doc.text("Dibuat oleh,", pageWidth - 50, signY + 4, { align: 'center' });
       doc.setTextColor(5, 150, 105);
       doc.setFont('Helvetica', 'bold');
-      doc.text("Ketua Tim Auditor", pageWidth - 40, signY + 8, { align: 'center' });
+      doc.text("Ketua Tim Auditor", pageWidth - 50, signY + 8, { align: 'center' });
 
       doc.setFont('Helvetica', 'normal');
       doc.setTextColor(15, 23, 42);
-      doc.text(identity.ketuaTimAuditor || "Pejabat Auditor Utama SPBE", pageWidth - 40, signY + 24, { align: 'center' });
+      doc.text(identity.ketuaTimAuditor || "Anna S.D. Wibowo", pageWidth - 50, signY + 24, { align: 'center' });
       doc.setFont('Helvetica', 'bold');
-      doc.text("Certified BSSN Cyber Auditor", pageWidth - 40, signY + 29, { align: 'center' });
+      doc.text("Certified BSSN Cyber Auditor", pageWidth - 50, signY + 29, { align: 'center' });
 
       // Tim Anggota Auditor (Team members list)
       if (identity.anggotaAuditor && identity.anggotaAuditor.length > 0) {
         doc.setFont('Helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(100, 116, 139);
-        doc.text("Anggota Tim Auditor:", pageWidth - 40, signY + 34, { align: 'center' });
+        doc.text("Anggota Tim Auditor:", pageWidth - 50, signY + 34, { align: 'center' });
         
         identity.anggotaAuditor.forEach((member, idx) => {
-          doc.text(`- ${member}`, pageWidth - 40, signY + 38 + (idx * 3.5), { align: 'center' });
+          doc.text(`- ${member}`, pageWidth - 50, signY + 38 + (idx * 3.5), { align: 'center' });
         });
       }
 
@@ -337,8 +402,8 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
         doc.setFontSize(8);
         doc.setTextColor(148, 163, 184); // slate-400
         doc.text(`Dokumen Resmi SPBE | Halaman ${i} dari ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
-        doc.text("BSSN Standard Formulir B4 (2021)", 15, pageHeight - 8);
-        doc.text("CONFIDENTIAL", pageWidth - 35, pageHeight - 8);
+        doc.text("BSSN Standard Formulir B4 (2021)", 20, pageHeight - 8);
+        doc.text("CONFIDENTIAL", pageWidth - 20, pageHeight - 8, { align: 'right' });
       }
 
       doc.save(`Laporan_Audit_SPBE_${identity.namaAplikasi.replace(/\s+/g, '_') || 'APLIKASI'}.pdf`);
@@ -433,14 +498,35 @@ export default function SummaryTab({ identity, checklist, findings, darkMode }: 
         }`}
       >
         {/* Document Header Cop (Government Style) */}
-        <div id="report-header-cop" className="text-center border-b-2 border-double border-slate-400 pb-5 space-y-1.5">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Building2 className="w-8 h-8 text-emerald-600 shrink-0" />
-            <h1 className="text-base font-extrabold tracking-wide uppercase select-none">Pemerintah Kabupaten Purbalingga</h1>
+        <div id="report-header-cop" className="relative flex flex-col md:flex-row items-center border-b-4 border-double border-slate-700 dark:border-slate-300 pb-4 text-center">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Lambang_Kabupaten_Purbalingga.png/120px-Lambang_Kabupaten_Purbalingga.png" 
+            alt="Logo Purbalingga" 
+            className="w-16 h-20 object-contain md:absolute md:left-4 shrink-0 filter drop-shadow-sm select-none" 
+            referrerPolicy="no-referrer"
+          />
+          <div className="flex-1 space-y-1 text-center">
+            <h1 className="text-xs sm:text-sm font-extrabold tracking-wider text-slate-500 dark:text-slate-400 uppercase select-none">
+              PEMERINTAH KABUPATEN PURBALINGGA
+            </h1>
+            <h2 className="text-base sm:text-xl font-black tracking-wide text-slate-800 dark:text-white uppercase leading-tight">
+              DINAS KOMUNIKASI DAN INFORMATIKA
+            </h2>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              Jalan Jenderal Sudirman No. 100 Purbalingga - 53311 | Telepon (0281) 891011
+            </p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-none">
+              Pos-el: diskominfo@purbalinggakab.go.id | Laman: purbalinggakab.go.id
+            </p>
           </div>
-          <h2 className="text-sm font-bold tracking-wider uppercase">Dinas Komunikasi Dan Informatika</h2>
-          <p className="text-[10px] text-slate-400 print:text-slate-600">Jl. Jenderal Sudirman No. 100, Purbalingga, Jawa Tengah | Telp: (0281) 891011</p>
-          <p className="text-[10px] font-mono font-extrabold text-emerald-500 tracking-wider">LAPORAN HASIL EVALUASI KEAMANAN SPBE - VERSI 1.0</p>
+        </div>
+        <div className="text-center mt-6 mb-8 space-y-1">
+          <h2 className="text-xs sm:text-sm font-extrabold tracking-wider text-slate-800 dark:text-white uppercase">
+            LAPORAN HASIL EVALUASI KEAMANAN SPBE - RESMI
+          </h2>
+          <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+            Nomor: 800 / 025 / SPBE / 2026
+          </p>
         </div>
 
         {/* Section 1: Metadata Audit */}

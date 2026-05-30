@@ -393,6 +393,45 @@ $$ language plpgsql security definer;
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_auth_user();
+
+
+-- =========================================================================================
+-- ALTERNATIF TROUBLESHOOTING / BYPASS PERMISSION (SANGAT DIREKOMENDASIKAN UNTUK SYNC SEED DI AWAL)
+-- JIKA ANDA MENGALAMI ERROR: "new row violates row-level security policy for table"
+-- Jalankan query berikut di Supabase SQL Editor untuk MENONAKTIFKAN RLS pada tabel-tabel terkait:
+-- =========================================================================================
+
+-- ALTER TABLE public.opd DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_periode DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_assignment DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_tim DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_tim_member DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_kategori DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_indikator DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_jawaban DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.temuan_audit DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_score DISABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.audit_laporan DISABLE ROW LEVEL SECURITY;
+
+-- ATAU JIKA MAU MERILEKSKAN AKSES ANONIM (BILA INGIN RLS AKTIF TAPI SYNC CLIENT BISA MASUK):
+-- CREATE POLICY "Allow anon insert on opd" ON public.opd FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on opd" ON public.opd FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit_periode" ON public.audit_periode FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit_periode" ON public.audit_periode FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit" ON public.audit FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit" ON public.audit FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit_assignment" ON public.audit_assignment FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit_assignment" ON public.audit_assignment FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit_kategori" ON public.audit_kategori FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit_kategori" ON public.audit_kategori FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit_indikator" ON public.audit_indikator FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit_indikator" ON public.audit_indikator FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on audit_jawaban" ON public.audit_jawaban FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on audit_jawaban" ON public.audit_jawaban FOR SELECT USING (true);
+-- CREATE POLICY "Allow anon insert on temuan_audit" ON public.temuan_audit FOR INSERT WITH CHECK (true);
+-- CREATE POLICY "Allow anon select on temuan_audit" ON public.temuan_audit FOR SELECT USING (true);
 `;
 
   // Handle copy text action
@@ -726,7 +765,27 @@ VALUES (gen_random_uuid(), 'MASUKKAN_ID_ASSIGNMENT_YANG_SESUAI', 'MASUKKAN_ID_OP
 
     } catch (pushErr: any) {
       console.error(pushErr);
-      addLog(`Fatal Error: ${pushErr.message || 'Kegagalan validasi schema'}`);
+      const errMsg = pushErr.message || 'Kegagalan validasi schema';
+      addLog(`Fatal Error: ${errMsg}`);
+      if (errMsg.toLowerCase().includes('row-level security') || errMsg.toLowerCase().includes('rls') || errMsg.toLowerCase().includes('violates row-level security')) {
+        addLog('💡 TIPS SOLUSI RLS:');
+        addLog('Error ini terjadi karena Row Level Security (RLS) aktif pada database Supabase Anda, tetapi tidak mengizinkan penulisan anonim (unauthenticated).');
+        addLog('Silakan jalankan perintah SQL berikut di Supabase SQL Editor Anda untuk menonaktifkan RLS sementara agar uji sinkronisasi dari browser dapat berjalan aman:');
+        addLog('ALTER TABLE public.opd DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_periode DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_assignment DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_tim DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_tim_member DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_kategori DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_indikator DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_jawaban DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.temuan_audit DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_score DISABLE ROW LEVEL SECURITY;');
+        addLog('ALTER TABLE public.audit_laporan DISABLE ROW LEVEL SECURITY;');
+        addLog('Atau beralihlah ke tab "Kebijakan Keamanan & RLS" jika ingin membuat kebijakan (policies) yang lebih longgar bagi pengguna anonim.');
+      }
     } finally {
       setIsSyncing(false);
     }
