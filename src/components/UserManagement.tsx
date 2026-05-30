@@ -81,6 +81,14 @@ export default function UserManagement({ darkMode }: UserManagementProps) {
             <span>Auditor Utama</span>
           </span>
         );
+      case 'AUDITEE':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase tracking-widest">
+            <Building className="w-3 h-3 animate-pulse" />
+            <span>Auditee / OPD</span>
+          </span>
+        );
+      case 'VIEWER':
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-widest">
@@ -190,6 +198,7 @@ export default function UserManagement({ darkMode }: UserManagementProps) {
                       >
                         <option value="ADMIN">ADMIN</option>
                         <option value="AUDITOR">AUDITOR</option>
+                        <option value="AUDITEE">AUDITEE</option>
                         <option value="VIEWER">VIEWER</option>
                       </select>
                     </td>
@@ -329,9 +338,10 @@ export default function UserManagement({ darkMode }: UserManagementProps) {
                     darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-905'
                   }`}
                 >
-                  <option value="AUDITOR">AUDITOR (Dapat mengisi evaluasi siber siber & bukti)</option>
-                  <option value="VIEWER">VIEWER (Hanya pratinjau statistik & compliance score secara pasif)</option>
                   <option value="ADMIN">ADMINISTRATOR (Akses penuh termasuk RBAC & rekayasa pengguna)</option>
+                  <option value="AUDITOR">AUDITOR (Dapat mengisi evaluasi siber & membuat program audit)</option>
+                  <option value="AUDITEE">AUDITEE (Melakukan evaluasi mandiri & menyertakan dokumen bukti)</option>
+                  <option value="VIEWER">VIEWER (Hanya pratinjau statistik & compliance score secara pasif)</option>
                 </select>
                 <div className="mt-1 bg-sky-500/10 p-2 text-sky-400 rounded-lg text-[10px] leading-relaxed">
                   <strong>Pemberitahuan Kredensial Pengujian:</strong> Setelah registrasi, sistem siber daerah akan memicu password penilai standar: <code>audit123</code> untuk login simulasi audit.

@@ -573,29 +573,38 @@ export default function ChecklistTab({
                 <label className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Upload Eviden / Bukti Dukung (Screenshot, PDF, Naskah Dokumen)</label>
                 <div 
                   id="drag-upload-container"
-                  onDragEnter={handleDrag}
-                  onDragOver={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center transition cursor-pointer ${
-                    dragActive
-                      ? 'border-emerald-500 bg-emerald-500/5'
-                      : darkMode
-                        ? 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
-                        : 'border-slate-250 bg-slate-50 hover:border-slate-350'
+                  onDragEnter={isFullyReadOnly ? undefined : handleDrag}
+                  onDragOver={isFullyReadOnly ? undefined : handleDrag}
+                  onDragLeave={isFullyReadOnly ? undefined : handleDrag}
+                  onDrop={isFullyReadOnly ? undefined : handleDrop}
+                  className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center transition ${
+                    isFullyReadOnly
+                      ? 'opacity-50 cursor-not-allowed border-slate-700/50 bg-slate-900/10'
+                      : dragActive
+                        ? 'border-emerald-500 bg-emerald-500/5 cursor-pointer'
+                        : darkMode
+                          ? 'border-slate-800 bg-slate-950/60 hover:border-slate-700 cursor-pointer'
+                          : 'border-slate-250 bg-slate-50 hover:border-slate-350 cursor-pointer'
                   }`}
                 >
                   <input 
                     type="file" 
                     id="evidence-file-input" 
                     className="hidden" 
+                    disabled={isFullyReadOnly}
                     onChange={handleFileChange}
                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                   />
-                  <label htmlFor="evidence-file-input" className="cursor-pointer flex flex-col items-center justify-center gap-1.5">
+                  <label htmlFor={isFullyReadOnly ? undefined : "evidence-file-input"} className={`${isFullyReadOnly ? 'cursor-not-allowed text-slate-500' : 'cursor-pointer'} flex flex-col items-center justify-center gap-1.5`}>
                     <Upload className="w-7 h-7 text-slate-400" />
                     <span>
-                      <strong className="text-emerald-500 decoration-none hover:underline">Tarik file di sini</strong> atau klik untuk memilih file
+                      {isFullyReadOnly ? (
+                        <span className="text-slate-500 font-semibold">Dokumen bukti terkunci</span>
+                      ) : (
+                        <span>
+                          <strong className="text-emerald-500 decoration-none hover:underline">Tarik file di sini</strong> atau klik untuk memilih file
+                        </span>
+                      )}
                     </span>
                     <span className="text-[10px] text-slate-500">Mendukung Gambar Screenshot, PDF, & Dokumen Kerja</span>
                   </label>
@@ -611,9 +620,10 @@ export default function ChecklistTab({
                     </div>
                     <button 
                       type="button"
+                      disabled={isFullyReadOnly}
                       onClick={() => setEvidenceName('')}
-                      className="text-slate-400 hover:text-rose-500 transition-colors"
-                      title="Hapus file"
+                      className={`text-slate-400 transition-colors ${isFullyReadOnly ? 'cursor-not-allowed opacity-40' : 'hover:text-rose-500 cursor-pointer'}`}
+                      title={isFullyReadOnly ? "Pengubahan bukti dikunci" : "Hapus file"}
                     >
                       <X className="w-4 h-4" />
                     </button>

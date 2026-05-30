@@ -147,7 +147,9 @@ function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITO
 
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialChecklist);
   const [findings, setFindings] = useState<FindingItem[]>(initialFindings);
-  const [isAuditLocked, setIsAuditLocked] = useState<boolean>(false);
+  const [isAuditLocked, setIsAuditLocked] = useState<boolean>(() => {
+    return localStorage.getItem('isAuditLocked') === 'true';
+  });
 
   // Reset tab only if active role is unauthorized for the current tab to prevent hanging states
   useEffect(() => {
@@ -276,6 +278,7 @@ function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITO
             darkMode={darkMode}
             readOnly={readOnly}
             role={role}
+            isAuditLocked={isAuditLocked}
           />
         );
       case 'conclusion':
@@ -401,9 +404,11 @@ function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITO
                 </div>
                 <button
                   onClick={() => {
-                    setIsAuditLocked(!isAuditLocked);
+                    const nextVal = !isAuditLocked;
+                    setIsAuditLocked(nextVal);
+                    localStorage.setItem('isAuditLocked', nextVal.toString());
                     setShowNotification(
-                      !isAuditLocked 
+                      nextVal 
                         ? "Sesi Audit berhasil DIKUNCI. Auditee tidak dapat mengubah data checklist." 
                         : "Sesi Audit berhasil DIBUKA kembali. Auditee dapat mengubah data checklist."
                     );
