@@ -45,6 +45,46 @@ const SEED_USERS: User[] = [
   }
 ];
 
+// Helper functions for encrypted token handling
+const SECRET_KEY = 'SATRIA_CYBER_SECURE_SALT_2026';
+
+function encryptToken(payload: object): string {
+  const jsonStr = JSON.stringify(payload);
+  let result = '';
+  for (let i = 0; i < jsonStr.length; i++) {
+    const charCode = jsonStr.charCodeAt(i);
+    const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+    result += String.fromCharCode(charCode ^ keyChar);
+  }
+  try {
+    return btoa(unescape(encodeURIComponent(result)));
+  } catch (e) {
+    return btoa(result);
+  }
+}
+
+function decryptToken(token: string): any | null {
+  try {
+    if (!token) return null;
+    let decoded = '';
+    try {
+      decoded = decodeURIComponent(escape(atob(token)));
+    } catch (e) {
+      decoded = atob(token);
+    }
+    let jsonStr = '';
+    for (let i = 0; i < decoded.length; i++) {
+      const charCode = decoded.charCodeAt(i);
+      const keyChar = SECRET_KEY.charCodeAt(i % SECRET_KEY.length);
+      jsonStr += String.fromCharCode(charCode ^ keyChar);
+    }
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    console.error('Failed to decrypt security token', err);
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 1. Core Brute Force & Session metrics initializers
   const [failedLoginCount, setFailedLoginCount] = useState<number>(() => {
@@ -79,7 +119,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const [user, setUser] = useState<User | null>(() => {
     const savedToken = localStorage.getItem('satria_auth_token');
-    const saved = localStorage.getItem('satria_auth_user');
+    if (!savedToken) return null;
+
+    const decrypted = decryptToken(savedToken);
+    if (!decrypted) {
+      localStorage.removeItem('satria_auth_token');
+      localStorage.removeItem('satria_auth_user');
+      return null;
+    }
+
     const lastActivity = parseInt(localStorage.getItem('lastActivityTimestamp') || '0', 10);
     const lockUntil = parseInt(localStorage.getItem('lockUntilTimestamp') || '0', 10);
 
@@ -97,8 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
 
-    if (!savedToken) return null;
-    return saved ? JSON.parse(saved) : null;
+    const saved = localStorage.getItem('satria_auth_user');
+    return saved ? JSON.parse(saved) : decrypted.user;
   });
 
   const [usersList, setUsersList] = useState<User[]>(() => {
@@ -138,6 +186,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(checker);
   }, []);
 
+  // Active activity monitoring for 10-minute automatic logout
+  useEffect(() => {
+    if (!user) return;
+
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    let lastUpdate = Date.now();
+
+    const updateActivity = () => {
+      const now = Date.now();
+      // Update at most once every 5 seconds to reduce state/storage writes
+      if (now - lastUpdate > 5000) {
+        lastUpdate = now;
+        setLastActivityTimestamp(now);
+        localStorage.setItem('lastActivityTimestamp', String(now));
+      }
+    };
+
+    // Attach listeners
+    activityEvents.forEach(evt => {
+      window.addEventListener(evt, updateActivity);
+    });
+
+    // Inactivity checker interval (runs every 5 seconds)
+    const interval = setInterval(() => {
+      const savedLast = parseInt(localStorage.getItem('lastActivityTimestamp') || '0', 10);
+      if (savedLast && (Date.now() - savedLast > 600000)) { // 10 minutes = 600,000ms
+        logout();
+      }
+    }, 5000);
+
+    return () => {
+      activityEvents.forEach(evt => {
+        window.removeEventListener(evt, updateActivity);
+      });
+      clearInterval(interval);
+    };
+  }, [user]);
+
   // Sync usersList to localstorage
   useEffect(() => {
     localStorage.setItem('satria_users_list', JSON.stringify(usersList));
@@ -166,25 +252,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentLockUntil = parseInt(localStorage.getItem('lockUntilTimestamp') || '0', 10);
     if (currentLockUntil && Date.now() < currentLockUntil) {
       const secondsLeft = Math.ceil((currentLockUntil - Date.now()) / 1000);
-      const isFullLock = failedLoginCount >= 5;
-      
-      if (isFullLock) {
-        return {
-          success: false,
-          error: `Akun terkunci karena terlalu banyak percobaan login. Silakan tunggu ${secondsLeft} detik lagi untuk memulihkan gate audit.`
-        };
-      } else {
-        return {
-          success: false,
-          error: `Pintu gerbang ditangguhkan akibat delay progresif. Coba kembali dalam ${secondsLeft} detik.`
-        };
-      }
+      return {
+        success: false,
+        error: `Login ditangguhkan sementara karena terlalu banyak kegagalan pintu gerbang siber. Silakan kembali dalam ${secondsLeft} detik.`
+      };
     }
 
     const foundUser = usersList.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
     
     if (!foundUser) {
-      return { success: false, error: 'Username tidak ditemukan di database SATRIA' };
+      const nextFailCount = failedLoginCount + 1;
+      setFailedLoginCount(nextFailCount);
+      localStorage.setItem('failedLoginCount', String(nextFailCount));
+      localStorage.setItem('loginAttempts', String(nextFailCount));
+
+      let lockDuration = 0;
+      let errorMsg = 'Username dan password tidak di temukan';
+
+      if (nextFailCount >= 5) {
+        const minutes = 2 * (nextFailCount - 4);
+        lockDuration = minutes * 60 * 1000;
+        errorMsg = `Keamanan Siber: ${nextFailCount} kali kesalahan login. Sistem diblokir selama ${minutes} menit (anti brute-force).`;
+      }
+
+      if (lockDuration > 0) {
+        const until = Date.now() + lockDuration;
+        setLockUntilTimestamp(until);
+        localStorage.setItem('lockUntilTimestamp', String(until));
+      }
+
+      return { success: false, error: errorMsg };
     }
 
     // Password validation logic
@@ -201,17 +298,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('loginAttempts', String(nextFailCount));
 
       let lockDuration = 0;
-      let errorMsg = `Password salah. Percobaan login: ${nextFailCount}/5.`;
+      let errorMsg = 'Username dan password tidak di temukan';
 
-      if (nextFailCount === 3) {
-        lockDuration = 60000; // 1 min
-        errorMsg = `Keamanan Siber: 3 kali salah password. Sistem ditangguhkan selama 1 menit (delay progresif).`;
-      } else if (nextFailCount === 4) {
-        lockDuration = 120000; // 2 mins
-        errorMsg = `Keamanan Siber: 4 kali salah password. Sistem ditangguhkan selama 2 menit (delay progresif).`;
-      } else if (nextFailCount >= 5) {
-        lockDuration = 600000; // 10 mins lockout
-        errorMsg = `Akun terkunci karena terlalu banyak percobaan login. Ditangguhkan selama 10 menit guna meredam brute force.`;
+      if (nextFailCount >= 5) {
+        // Multiplier starting at 2 minutes for the 5th mistake, and 2 extra minutes of lock for each mistake after that.
+        const minutes = 2 * (nextFailCount - 4);
+        lockDuration = minutes * 60 * 1000;
+        errorMsg = `Keamanan Siber: ${nextFailCount} kali kesalahan login. Sistem diblokir selama ${minutes} menit (anti brute-force).`;
       }
 
       if (lockDuration > 0) {
@@ -230,10 +323,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('loginAttempts', '0');
     localStorage.removeItem('lockUntilTimestamp');
 
-    const generatedToken = 'session_satria_' + Math.random().toString(36).substring(2, 11);
+    const now = Date.now();
+    const generatedToken = encryptToken({
+      userId: foundUser.id,
+      username: foundUser.username,
+      role: foundUser.role,
+      user: foundUser,
+      createdAt: now
+    });
     setToken(generatedToken);
     
-    const now = Date.now();
     setLastActivityTimestamp(now);
     localStorage.setItem('lastActivityTimestamp', String(now));
 

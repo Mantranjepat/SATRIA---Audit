@@ -122,17 +122,17 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                 <Lock className="w-4 h-4 shrink-0 text-red-500 animate-pulse" />
                 <span>
                   {failedLoginCount >= 5 
-                    ? "AKUN/SISTEM TERKUNCI (ANTI BRUTE-FORCE)" 
-                    : "DELAY PROGRESIF AKTIF"}
+                    ? `AKUN TERKUNCI (${2 * (failedLoginCount - 4)} MENIT BLOKIR)` 
+                    : "AKUN / SISTEM DITANGGUHKAN"}
                 </span>
                 <span className="ml-auto font-mono text-red-400 px-1.5 py-0.5 bg-red-500/20 rounded animate-pulse">
                   {secondsRemaining}s
                 </span>
               </div>
-              <p className="text-slate-300 leading-relaxed">
+              <p className="text-slate-300 leading-relaxed text-[11px] mt-1">
                 {failedLoginCount >= 5 
-                  ? "Sistem memblokir sementara semua percobaan masuk karena terlalu banyak kegagalan pintu gerbang siber."
-                  : `Aktivitas tidak sah terdeteksi. Sistem menahan akses masuk selama ${secondsRemaining} detik progresif delay.`}
+                  ? `Sistem memblokir sementara semua percobaan masuk karena salah password sebanyak ${failedLoginCount} kali. Durasi penalty diblokir selama ${2 * (failedLoginCount - 4)} menit (penambahan kelipatan 2 menit setiap kesalahan berikutnya).`
+                  : `Aktivitas tidak sah terdeteksi. Sistem menahan akses masuk selama ${secondsRemaining} detik.`}
               </p>
             </div>
           )}

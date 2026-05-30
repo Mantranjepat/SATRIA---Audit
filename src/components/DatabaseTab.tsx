@@ -395,6 +395,7 @@ create or replace trigger on_auth_user_created
   for each row execute procedure public.handle_new_auth_user();
 
 
+
 -- =========================================================================================
 -- ALTERNATIF TROUBLESHOOTING / BYPASS PERMISSION (SANGAT DIREKOMENDASIKAN UNTUK SYNC SEED DI AWAL)
 -- JIKA ANDA MENGALAMI ERROR: "new row violates row-level security policy for table"
