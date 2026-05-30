@@ -120,36 +120,194 @@ function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITO
   const [darkMode, setDarkMode] = useState<boolean>(true); // Default to cyberpunk dark look
   const [showNotification, setShowNotification] = useState<string | null>(null);
 
+  // Helper for generating sanitized storage keys to prevent path traversal or object injection (IDOR Protection)
+  const getStorageKey = (prefix: string, opdName: string) => {
+    const clean = (opdName || 'umum').toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    return `satria_${prefix}_${clean}`;
+  };
+
+  const createDefaultIdentity = (opdName: string): AuditIdentity => {
+    return {
+      opd: opdName,
+      namaAplikasi: opdName.toLowerCase().includes('kepegawaian') || opdName.toLowerCase().includes('bkd') ? "APLIKASI SIMPEG BKD" : "APLIKASI E-KEPEGAWAIAN",
+      domainUrl: opdName.toLowerCase().includes('kepegawaian') || opdName.toLowerCase().includes('bkd') ? "https://simpeg.purbalinggakab.go.id" : "https://ekepegawaian.purbalinggakab.go.id",
+      ipAddress: "103.111.43.2",
+      ketuaTimAuditor: "Anna S.D. Wibowo",
+      anggotaAuditor: [
+        "Agus Sutriatno",
+        "Hanifah Khairunisa"
+      ],
+      auditee: [
+        "Tim IT Bidang Aptika"
+      ],
+      penanggungJawab: "Kepala Bidang Aplikasi",
+      tanggalAudit: "2026-05-29",
+      jenisAudit: "WEBSITE",
+      catatan: `Sistem aplikasi tata kelola data siber dan aparatur sipil negara di lingkungan ${opdName}.`,
+      kompleksitasObjek: "Sedang",
+      kompleksitasTeknologi: "Sedang",
+      sebaranLokasi: "Terpusat",
+      jumlahHariEstimasi: 6
+    };
+  };
+
+  // Resolve active target OPD securely based on Role (IDOR Protection)
+  const activeOpd = React.useMemo(() => {
+    if (user?.role === 'AUDITEE' || user?.role === 'VIEWER') {
+      return user.opd || "Badan Kepegawaian Daerah";
+    }
+    // For admin / auditor, check if there is a last selected OPD or use default
+    return localStorage.getItem('satria_active_opd_under_audit') || "Dinas Komunikasi dan Informatika Kabupaten Purbalingga";
+  }, [user]);
+
   // Core Audit State
-  const [identity, setIdentity] = useState<AuditIdentity>({
-    opd: "Dinas Komunikasi dan Informatika Kabupaten Purbalingga",
-    namaAplikasi: "APLIKASI E-KEPEGAWAIAN",
-    domainUrl: "https://ekepegawaian.purbalinggakab.go.id",
-    ipAddress: "103.111.43.2",
-    ketuaTimAuditor: "Anna S.D. Wibowo",
-    anggotaAuditor: [
-      "Agus Sutriatno",
-      "Hanifah Khairunisa"
-    ],
-    auditee: [
-      "Tim SIMPEG BKD",
-      "Bidang Infrastruktur"
-    ],
-    penanggungJawab: "Kepala Bidang Aptika",
-    tanggalAudit: "2026-05-29",
-    jenisAudit: "WEBSITE",
-    catatan: "Sistem aplikasi SIMPEG (Sistem Informasi Manajemen Kepegawaian) merupakan poros utama data aparatur sipil negara di lingkungan Pemerintah Kabupaten Purbalingga, meliputi pelaporan administratif, kepangkatan, dan data kepegawaian internal daerah.",
-    kompleksitasObjek: "Sedang",
-    kompleksitasTeknologi: "Sedang",
-    sebaranLokasi: "Terpusat",
-    jumlahHariEstimasi: 6
+  const [identity, setIdentity] = useState<AuditIdentity>(() => {
+    const defaultOpd = user?.role === 'AUDITEE' || user?.role === 'VIEWER' 
+      ? (user.opd || "Badan Kepegawaian Daerah")
+      : "Dinas Komunikasi dan Informatika Kabupaten Purbalingga";
+    
+    const cleanOpd = (defaultOpd || 'umum').toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    const stored = localStorage.getItem(`satria_identity_${cleanOpd}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return {
+      opd: defaultOpd,
+      namaAplikasi: defaultOpd.toLowerCase().includes('kepegawaian') || defaultOpd.toLowerCase().includes('bkd') ? "APLIKASI SIMPEG BKD" : "APLIKASI E-KEPEGAWAIAN",
+      domainUrl: defaultOpd.toLowerCase().includes('kepegawaian') || defaultOpd.toLowerCase().includes('bkd') ? "https://simpeg.purbalinggakab.go.id" : "https://ekepegawaian.purbalinggakab.go.id",
+      ipAddress: "103.111.43.2",
+      ketuaTimAuditor: "Anna S.D. Wibowo",
+      anggotaAuditor: [
+        "Agus Sutriatno",
+        "Hanifah Khairunisa"
+      ],
+      auditee: [
+        "Tim IT Bidang Aptika"
+      ],
+      penanggungJawab: "Kepala Bidang Aplikasi",
+      tanggalAudit: "2026-05-29",
+      jenisAudit: "WEBSITE",
+      catatan: `Sistem aplikasi tata kelola data siber dan aparatur sipil negara di lingkungan ${defaultOpd}.`,
+      kompleksitasObjek: "Sedang",
+      kompleksitasTeknologi: "Sedang",
+      sebaranLokasi: "Terpusat",
+      jumlahHariEstimasi: 6
+    };
   });
 
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(initialChecklist);
-  const [findings, setFindings] = useState<FindingItem[]>(initialFindings);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(() => {
+    const defaultOpd = user?.role === 'AUDITEE' || user?.role === 'VIEWER' 
+      ? (user.opd || "Badan Kepegawaian Daerah")
+      : "Dinas Komunikasi dan Informatika Kabupaten Purbalingga";
+    const cleanOpd = (defaultOpd || 'umum').toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    const stored = localStorage.getItem(`satria_checklist_${cleanOpd}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {}
+    }
+    return initialChecklist;
+  });
+
+  const [findings, setFindings] = useState<FindingItem[]>(() => {
+    const defaultOpd = user?.role === 'AUDITEE' || user?.role === 'VIEWER' 
+      ? (user.opd || "Badan Kepegawaian Daerah")
+      : "Dinas Komunikasi dan Informatika Kabupaten Purbalingga";
+    const cleanOpd = (defaultOpd || 'umum').toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    const stored = localStorage.getItem(`satria_findings_${cleanOpd}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {}
+    }
+    if (defaultOpd.toLowerCase().includes('komunikasi')) {
+      return initialFindings;
+    }
+    return [];
+  });
+
   const [isAuditLocked, setIsAuditLocked] = useState<boolean>(() => {
     return localStorage.getItem('isAuditLocked') === 'true';
   });
+
+  // Load states reactively based on activeOpd to ensure strict data plane isolation (IDOR Prevention)
+  useEffect(() => {
+    if (!activeOpd) return;
+
+    // 1. Identity
+    const identityKey = getStorageKey('identity', activeOpd);
+    const savedIdentity = localStorage.getItem(identityKey);
+    let resolvedIdentity: AuditIdentity;
+    if (savedIdentity) {
+      try {
+        resolvedIdentity = JSON.parse(savedIdentity);
+      } catch (e) {
+        resolvedIdentity = createDefaultIdentity(activeOpd);
+      }
+    } else {
+      resolvedIdentity = createDefaultIdentity(activeOpd);
+    }
+    if (user?.role === 'AUDITEE' || user?.role === 'VIEWER') {
+      resolvedIdentity.opd = user.opd || activeOpd;
+    }
+    setIdentity(resolvedIdentity);
+
+    // 2. Checklist
+    const checklistKey = getStorageKey('checklist', activeOpd);
+    const savedChecklist = localStorage.getItem(checklistKey);
+    if (savedChecklist) {
+      try {
+        setChecklist(JSON.parse(savedChecklist));
+      } catch (e) {
+        setChecklist(initialChecklist);
+      }
+    } else {
+      setChecklist(initialChecklist);
+    }
+
+    // 3. Findings
+    const findingsKey = getStorageKey('findings', activeOpd);
+    const savedFindings = localStorage.getItem(findingsKey);
+    if (savedFindings) {
+      try {
+        setFindings(JSON.parse(savedFindings));
+      } catch (e) {
+        setFindings([]);
+      }
+    } else {
+      if (activeOpd.toLowerCase().includes('komunikasi')) {
+        setFindings(initialFindings);
+      } else {
+        setFindings([]);
+      }
+    }
+  }, [activeOpd, user?.opd]);
+
+  // Save states to isolated local storage when updated
+  useEffect(() => {
+    if (!identity.opd) return;
+    const key = getStorageKey('identity', identity.opd);
+    localStorage.setItem(key, JSON.stringify(identity));
+    
+    // For admin/auditor, also keep track of what last OPD they are viewing/auditing
+    if (user?.role === 'ADMIN' || user?.role === 'AUDITOR') {
+      localStorage.setItem('satria_active_opd_under_audit', identity.opd);
+    }
+  }, [identity, user]);
+
+  useEffect(() => {
+    if (!identity.opd) return;
+    const key = getStorageKey('checklist', identity.opd);
+    localStorage.setItem(key, JSON.stringify(checklist));
+  }, [checklist, identity.opd]);
+
+  useEffect(() => {
+    if (!identity.opd) return;
+    const key = getStorageKey('findings', identity.opd);
+    localStorage.setItem(key, JSON.stringify(findings));
+  }, [findings, identity.opd]);
 
   // Reset tab only if active role is unauthorized for the current tab to prevent hanging states
   useEffect(() => {
@@ -250,6 +408,7 @@ function Workspace({ role, initialTab = 'dashboard' }: { role: 'ADMIN' | 'AUDITO
             setIdentity={setIdentity} 
             darkMode={darkMode}
             readOnly={readOnly}
+            role={role}
           />
         );
       case 'checklist':

@@ -14,13 +14,15 @@ interface IdentityTabProps {
   setIdentity: React.Dispatch<React.SetStateAction<AuditIdentity>>;
   darkMode: boolean;
   readOnly?: boolean;
+  role?: string;
 }
 
 export default function IdentityTab({
   identity,
   setIdentity,
   darkMode,
-  readOnly = false
+  readOnly = false,
+  role = 'AUDITEE'
 }: IdentityTabProps) {
 
   const [showHelper, setShowHelper] = useState(false);
@@ -134,12 +136,13 @@ export default function IdentityTab({
               name="opd"
               value={identity.opd}
               onChange={handleInputChange}
+              disabled={role === 'AUDITEE' || role === 'VIEWER'}
               placeholder="Contoh: Dinas Kominfo Kabupaten Purbalingga"
               className={`px-4 py-2.5 rounded-xl border text-sm outline-none ${
                 darkMode
                   ? 'bg-[#0f172a] border-[#334155] text-white focus:border-cyan-400'
                   : 'bg-slate-50 border-slate-200'
-              }`}
+              } disabled:opacity-75 disabled:cursor-not-allowed`}
             />
           </div>
 

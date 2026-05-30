@@ -356,6 +356,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addUser = (newUser: Omit<User, 'id'>): User => {
+    if (!user || user.role !== 'ADMIN') {
+      throw new Error('Akses Ditolak: Hanya Administrator siber yang memiliki wewenang meregistrasi pengguna.');
+    }
     const createdUser: User = {
       ...newUser,
       id: `usr-${Date.now()}`
@@ -365,14 +368,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteUser = (id: string) => {
+    if (!user || user.role !== 'ADMIN') {
+      throw new Error('Akses Ditolak: Hanya Administrator siber yang memiliki wewenang menghapus pengguna.');
+    }
     if (user && user.id === id) return;
     setUsersList(prev => prev.filter(u => u.id !== id));
   };
 
-  const updateUserRole = (id: string, role: UserRole) => {
-    setUsersList(prev => prev.map(u => u.id === id ? { ...u, role } : u));
-    if (user && user.id === id) {
-      setUser(prev => prev ? { ...prev, role } : null);
+  const updateUserRole = (id: string, roleToSet: UserRole) => {
+    if (!user || user.role !== 'ADMIN') {
+      throw new Error('Akses Ditolak: Hanya Administrator siber yang memiliki wewenang merubah otorisasi peran.');
+    }
+    setUsersList(prev => prev.map(u => u.id === id ? { ...u, role: roleToSet } : u));
+    if (user.id === id) {
+      setUser(prev => prev ? { ...prev, role: roleToSet } : null);
     }
   };
 
